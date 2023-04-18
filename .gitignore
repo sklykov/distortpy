@@ -1,3 +1,15 @@
+# My additions
+*.pdf
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.doc
+*.docx
+*.png
+Documents/
+Docs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
