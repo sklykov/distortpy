@@ -48,5 +48,26 @@ def vertical_fringes(width: int = 520, height: int = 480, step: int = 15, fringe
     return img_fringes
 
 
-def horizontal_fringes():
-    pass
+def horizontal_fringes(width: int = 520, height: int = 480, step: int = 16, fringe_width: int = 12) -> np.ndarray:
+    img_fringes = None
+    if step <= 2*width and step >= 2 and width > 4 and height > 4:
+        img_fringes = np.zeros((height, width), dtype="float")
+        for i_fringe_center in range(step//4, height, step):
+            # img_fringes[i-fringe_step_vert//4:i+fringe_step_vert//4, :] = 1.0  # straight, not blurred fringes
+            # below - modelling the fringes as gaussian blurred fringes
+            sigma_fringe = fringe_width*0.25  # sigma_fringe = fringe_width / 4.0
+            i = i_fringe_center - step // 2
+            if i < 0:
+                i = 0
+            elif i >= height:
+                i = height-1
+            while i < i_fringe_center + (step // 2):
+                if i < height:
+                    fringe_profile = np.exp(-np.power(i-i_fringe_center, 2)/np.power(sigma_fringe, 2))
+                    img_fringes[i, :] = fringe_profile
+                    i += 1
+                else:
+                    break
+    else:
+        raise ValueError(f"Some of provided parameters {width, height, step, fringe_width} inconsistent")
+    return img_fringes
