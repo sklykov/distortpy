@@ -20,9 +20,9 @@ import time
 # %% Local imports
 # absolute import as the main module for various types of module calls
 if __name__ == "__main__" or __name__ == "__mp_main__" or __name__ == Path(__file__).stem:
-    from gen_samples.specific_samples import grid_points, vertical_fringes, horizontal_fringes
+    from gen_samples.specific_samples import vertical_fringes, horizontal_fringes
 else:
-    from .gen_samples.specific_samples import grid_points, vertical_fringes, horizontal_fringes
+    from .gen_samples.specific_samples import vertical_fringes, horizontal_fringes
 
 # %% Samples generation parameters
 use_vertical_fringes = True; k_barrel = -0.5; k_pincushion = 0.5
@@ -78,23 +78,40 @@ def radial_distort(image: np.ndarray, k1: float, smooth_output: bool = True,
             j_left = np.min(jj_dist[0, :]); j_right = np.max(jj_dist[0, :])
             distorted_image = distorted_image[i_top:i_bottom, j_left:j_right]
 
-        # Smooth the distorted image to remove a bit the artifacts
-        if smooth_output:
-            distorted_image = gaussian(distorted_image, smooth_sigma)
-
     # Pincushion distortion
     else:
         # Filter out the pixel coordinates laying outside the original image size
         # Slow implementation, involving 2 for loops - as the reference for getting the result, partially speeded up
         ii_dist_log_mask = np.logical_and(0 <= ii_dist, ii_dist < h)
         jj_dist_log_mask = np.logical_and(0 <= jj_dist, jj_dist < w)
+        # Pixelwise transformation
         for i in range(h):
             for j in range(w):
                 if ii_dist_log_mask[i, j]:
                     if jj_dist_log_mask[i, j]:
                         distorted_image[ii_dist[i, j], jj_dist[i, j]] = image[i, j]
+        # distorted_image[ii_dist_log_mask, jj_dist_log_mask] = image  # doesn't work directly
 
-    return distorted_image, ii_dist, jj_dist
+        # Interpolation of pixel values not involved in the distortion transform
+        interpolation_sum_coeffs = np.asarray([1.0, 0.5, 1/3, 0.25, 0.2, 1/6, 1/7, 0.125])
+        zero_ii, zero_jj = np.nonzero(distorted_image < 1E-9)  # controvercially, returns indices of zero pixels
+        if zero_ii.shape[0] > 0:
+            for zero_index in range(zero_ii.shape[0]):
+                i, j = zero_ii[zero_index], zero_jj[zero_index]
+                if not i == 0 or not j == 0 or not i == h-1 or not j == w-1:
+                    # Define mask coordinates - for calculation interpolation sum
+                    i_top = i-1; i_bottom = i+1; j_left = j-1; j_right = j+1
+                    # Calculate sum of pixels inside 3x3 mask using the numpy
+                    zero_mask_ii, _ = np.nonzero(distorted_image[i_top:i_bottom+1, j_left:j_right+1] > 1E-9)
+                    distorted_image[i, j] = (interpolation_sum_coeffs[zero_mask_ii.shape[0]-1]
+                                             * np.sum(distorted_image[i_top:i_bottom+1, j_left:j_right+1]))
+        # TODO: make enlarged image for avoiding 2 for loops above for performance boost
+
+    # Smooth the distorted image to remove a bit of the artifacts
+    if smooth_output:
+        distorted_image = gaussian(distorted_image, smooth_sigma)
+
+    return distorted_image
 
 
 def radial_distort2():
@@ -127,7 +144,6 @@ def test_performance(image, k):
     None.
 
     """
-    h, w = image.shape
     t_mean_ms = 0.0
     for i in range(perf_iterations):
         t1 = time.perf_counter()
@@ -135,23 +151,25 @@ def test_performance(image, k):
         t2 = time.perf_counter()
         t_mean_ms += 1000.0*(t2-t1)
     t_mean_ms = int(np.round(t_mean_ms / perf_iterations, 0))
-    print(f"Distortion with {k} of an image {w}x{h} takes ms:", t_mean_ms)
+    print(f"Distortion with {k} of an image {image.shape[1]}x{image.shape[0]} takes ms:", t_mean_ms)
 
 
 # %% Testing as the script
 if __name__ == "__main__":
     plt.close("all"); make_crop = True
-    # points = generate_grid_points(); plt.figure(); plt.imshow(points); plt.tight_layout()
+    # Generation of sample - interferometric fringes
     if use_vertical_fringes:
         fringes_image = vertical_fringes()
     else:
         fringes_image = horizontal_fringes()
+
+    # Testing the performance of implementations - before plotting, maybe last influences the measures
+    test_performance(fringes_image, k_barrel)
+    test_performance(fringes_image, k_pincushion)
+
+    # Plotting the sample and the result of distortion
     plt.figure(); plt.imshow(fringes_image); plt.tight_layout()
     # distorted_fringes = radial_distort(fringes_image, k_barrel, crop_dist_img=make_crop)
     # plt.figure(); plt.imshow(distorted_fringes); plt.tight_layout()
-    distorted_fringes2, ii_dist, jj_dist = radial_distort(fringes_image, k_pincushion)
+    distorted_fringes2 = radial_distort(fringes_image, k_pincushion)
     plt.figure(); plt.imshow(distorted_fringes2); plt.tight_layout()
-
-    # Testing the performance of implementations
-    test_performance(fringes_image, k_barrel)
-    test_performance(fringes_image, k_pincushion)
