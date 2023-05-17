@@ -142,7 +142,7 @@ def radial_distort(image: np.ndarray, k1: float, smooth_output: bool = True,
         #     distorted_image2 = distorted_image2[:, 0:w]
         # distorted_image = distorted_image - distorted_image2
 
-        # Interpolation of pixel values not involved in the distortion transform (non-transformed pixels), makes sence only for cropped image
+        # Interpolation of pixel values not involved in the distortion transform (non-transformed pixels), makes sence only for a cropped image
         if crop_dist_img:
             interpolation_sum_coeffs = np.asarray([1.0, 0.5, 1/3, 0.25, 0.2, 1/6, 1/7, 0.125])
             zero_ii, zero_jj = np.nonzero(distorted_image[1:h-1, 1:w-1] < 1E-9)  # controversially, returns indices of zero pixels
