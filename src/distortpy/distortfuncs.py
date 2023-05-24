@@ -107,6 +107,20 @@ def radial_distort(image: np.ndarray, k1: float, smooth_output: bool = True,
         else:
             h, w = h2, w2
 
+        # Interpolation of pixel values not involved in the distortion transform (non-transformed pixels), makes sence only for a cropped image
+        if crop_dist_img:
+            interpolation_sum_coeffs = np.asarray([1.0, 0.5, 1/3, 0.25, 0.2, 1/6, 1/7, 0.125])
+            zero_ii, zero_jj = np.nonzero(distorted_image[1:h-1, 1:w-1] < 1E-9)  # controversially, returns indices of zero pixels
+            if zero_ii.shape[0] > 0:
+                for zero_index in range(zero_ii.shape[0]):
+                    i, j = zero_ii[zero_index] + 1, zero_jj[zero_index] + 1  # because borders of the initial image removed
+                    # Define mask coordinates - for calculation interpolation sum
+                    i_top = i-1; i_bottom = i+1; j_left = j-1; j_right = j+1
+                    # Calculate sum of pixels inside 3x3 mask using the numpy
+                    zero_mask_ii, _ = np.nonzero(distorted_image[i_top:i_bottom+1, j_left:j_right+1] > 1E-9)
+                    distorted_image[i, j] = (interpolation_sum_coeffs[zero_mask_ii.shape[0]-1]
+                                             * np.sum(distorted_image[i_top:i_bottom+1, j_left:j_right+1]))
+
         # Initialize empty image for distortion representation
         # distorted_image = np.zeros((h, w), dtype=image.dtype)
 
@@ -141,20 +155,6 @@ def radial_distort(image: np.ndarray, k1: float, smooth_output: bool = True,
         # elif w2 != w and h2 == h:
         #     distorted_image2 = distorted_image2[:, 0:w]
         # distorted_image = distorted_image - distorted_image2
-
-        # Interpolation of pixel values not involved in the distortion transform (non-transformed pixels), makes sence only for a cropped image
-        if crop_dist_img:
-            interpolation_sum_coeffs = np.asarray([1.0, 0.5, 1/3, 0.25, 0.2, 1/6, 1/7, 0.125])
-            zero_ii, zero_jj = np.nonzero(distorted_image[1:h-1, 1:w-1] < 1E-9)  # controversially, returns indices of zero pixels
-            if zero_ii.shape[0] > 0:
-                for zero_index in range(zero_ii.shape[0]):
-                    i, j = zero_ii[zero_index] + 1, zero_jj[zero_index] + 1  # because borders of the initial image removed
-                    # Define mask coordinates - for calculation interpolation sum
-                    i_top = i-1; i_bottom = i+1; j_left = j-1; j_right = j+1
-                    # Calculate sum of pixels inside 3x3 mask using the numpy
-                    zero_mask_ii, _ = np.nonzero(distorted_image[i_top:i_bottom+1, j_left:j_right+1] > 1E-9)
-                    distorted_image[i, j] = (interpolation_sum_coeffs[zero_mask_ii.shape[0]-1]
-                                             * np.sum(distorted_image[i_top:i_bottom+1, j_left:j_right+1]))
 
         # Rough global smooth - not efficiently removing artifacts
         # distorted_image = img_as_uint(distorted_image)
